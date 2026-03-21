@@ -1,21 +1,38 @@
 package com.eventmgmt.util;
 
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import java.security.Key;
 import java.util.Date;
 
 @Component
 public class JwtUtil {
 
-    private final Key key;
+    private final String secretKey;
+    private Key key;
 
     public JwtUtil(@Value("${jwt.secret}") String secretKey) {
-        // ✅ ensure the key is at least 32 chars for HS256
-        this.key = Keys.hmacShaKeyFor(secretKey.getBytes());
+        this.secretKey = secretKey;
+    }
+
+    @PostConstruct
+    public void init() {
+        if (secretKey == null || secretKey.isEmpty()) {
+            throw new RuntimeException("JWT secret is missing!");
+        }
+
+        try {
+            // ✅ Decode Base64 secret properly
+            byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+            this.key = Keys.hmacShaKeyFor(keyBytes);
+        } catch (Exception e) {
+            throw new RuntimeException("Invalid JWT secret format!", e);
+        }
     }
 
     // Generate token with role
@@ -23,7 +40,7 @@ public class JwtUtil {
         return Jwts.builder()
                 .setSubject(email)
                 .claim("role", role)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 10)) // 10 hrs
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
